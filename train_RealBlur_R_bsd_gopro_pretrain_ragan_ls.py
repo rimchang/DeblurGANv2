@@ -169,7 +169,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    with open('./config/config_RealBlurR_SRGB_GEO_bsd_gopro_pretrain_ragan-ls.yaml', 'r') as f:
+    with open('./config/config_RealBlurR_bsd_gopro_pretrain_ragan-ls.yaml', 'r') as f:
         config = yaml.load(f)
 
     batch_size = config.pop('batch_size')
