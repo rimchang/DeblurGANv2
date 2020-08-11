@@ -34,8 +34,9 @@ def prepare_dirs(path):
 def get_gt_image(path):
 	dir, filename = os.path.split(path)
 	base, seq = os.path.split(dir)
-	base, _ = os.path.split(base)
-	img = cv2.cvtColor(cv2.imread(os.path.join(base, 'sharp', seq, filename)), cv2.COLOR_BGR2RGB)
+	base, seq = os.path.split(base)
+	#print(os.path.join(base, 'sharp', seq, filename), dir,  base, filename, seq)
+	img = cv2.cvtColor(cv2.imread(os.path.join(base, seq, 'sharp', filename)), cv2.COLOR_BGR2RGB)
 	return img
 
 
@@ -71,6 +72,7 @@ def test_image(model, image_path):
 def test(model, files):
 	psnr = 0
 	ssim = 0
+	print(files)
 	for file in tqdm.tqdm(files):
 		cur_psnr, cur_ssim = test_image(model, file)
 		psnr += cur_psnr
@@ -81,10 +83,10 @@ def test(model, files):
 
 if __name__ == '__main__':
 	args = get_args()
-	with open('config/config.yaml') as cfg:
+	with open('config_bk/config.yaml') as cfg:
 		config = yaml.load(cfg)
 	model = get_generator(config['model'])
 	model.load_state_dict(torch.load(args.weights_path)['model'])
 	model = model.cuda()
-	filenames = sorted(glob.glob(args.img_folder + '/test' + '/blur/**/*.png', recursive=True))
+	filenames = sorted(glob.glob(args.img_folder + '/test' + '/**/blur/*.png', recursive=True))
 	test(model, filenames)

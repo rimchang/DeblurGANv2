@@ -14,7 +14,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import aug
-
+import math
 
 def subsample(data: Iterable, bounds: Tuple[float, float], hash_fn: Callable, n_buckets=100, salt='', verbose=True):
     data = list(data)
@@ -50,8 +50,8 @@ def _read_img(x: str):
 
 class PairedDataset(Dataset):
     def __init__(self,
-                 files_a: Tuple[str],
-                 files_b: Tuple[str],
+                 files_a: Iterable[str],
+                 files_b: Iterable[str],
                  transform_fn: Callable,
                  normalize_fn: Callable,
                  corrupt_fn: Optional[Callable] = None,
@@ -140,3 +140,60 @@ class PairedDataset(Dataset):
                              normalize_fn=normalize_fn,
                              transform_fn=transform_fn,
                              verbose=verbose)
+
+    @staticmethod
+    def from_datalist(config):
+        config = deepcopy(config)
+        datalist_path = config['files_a']
+        print(config)
+        over_sampling = config['over_sampling']
+
+        data_list = []
+        data_list1 = datalist_path.split(',')[0]
+        data_list1 = open(data_list1, 'rt').read().splitlines()
+        data_list1 = list(map(lambda x: x.strip().split(' '), data_list1))
+        data_list += data_list1
+        if over_sampling != 0:
+            datalist1_upsample = math.ceil(float(over_sampling) / float(len(data_list1)))
+            for i in range(int(datalist1_upsample) - 1):
+                data_list += data_list1
+
+        if len(datalist_path.split(',')) >= 2:
+            data_list2 = datalist_path.split(',')[1]
+            data_list2 = open(data_list2, 'rt').read().splitlines()
+            data_list2 = list(map(lambda x: x.strip().split(' '), data_list2))
+            data_list += data_list2
+
+            if over_sampling != 0:
+                datalist2_upsample = math.ceil(float(over_sampling) / float(len(data_list2)))
+                for i in range(int(datalist2_upsample) - 1):
+                    data_list += data_list2
+
+        if len(datalist_path.split(',')) >= 3:
+            data_list3 = datalist_path.split(',')[2]
+            data_list3 = open(data_list3, 'rt').read().splitlines()
+            data_list3 = list(map(lambda x: x.strip().split(' '), data_list3))
+            data_list += data_list3
+
+            if over_sampling != 0:
+                datalist3_upsample = math.ceil(float(over_sampling) / float(len(data_list3)))
+                for i in range(int(datalist3_upsample) - 1):
+                    data_list += data_list3
+
+        print(len(data_list))
+        verbose = config.get('verbose', True)
+        files_a = ['dataset/'+blurred for gt, blurred in data_list]
+        files_b = ['dataset/'+gt for gt, blurred in data_list]
+
+        transform_fn = aug.get_transforms(size=config['size'], scope=config['scope'], crop=config['crop'])
+        normalize_fn = aug.get_normalize()
+        #corrupt_fn = aug.get_corrupt_function(config['corrupt'])
+
+        return PairedDataset(files_a=files_a,
+                             files_b=files_b,
+                             preload=config['preload'],
+                             preload_size=config['preload_size'],
+                             normalize_fn=normalize_fn,
+                             transform_fn=transform_fn,
+                             verbose=verbose)
+

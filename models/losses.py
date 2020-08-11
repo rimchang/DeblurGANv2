@@ -20,7 +20,7 @@ class ContentLoss():
         return self.criterion(fakeIm, realIm)
 
     def __call__(self, fakeIm, realIm):
-        return self.get_loss(fakeIm, realIm)
+        return self.get_loss(fakeIm, realIm) * 0.5
 
 
 class PerceptualLoss():
@@ -42,13 +42,18 @@ class PerceptualLoss():
         with torch.no_grad():
             self.criterion = loss
             self.contentFunc = self.contentFunc()
-            self.transform = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            #self.transform = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def get_loss(self, fakeIm, realIm):
         fakeIm = (fakeIm + 1) / 2.0
         realIm = (realIm + 1) / 2.0
-        fakeIm[0, :, :, :] = self.transform(fakeIm[0, :, :, :])
-        realIm[0, :, :, :] = self.transform(realIm[0, :, :, :])
+
+        mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
+        std = torch.tensor([0.229, 0.224, 0.225]).cuda()
+
+        fakeIm[0, :, :, :] = fakeIm[0, :, :, :].sub_(mean[:, None, None]).div_(std[:, None, None])
+        realIm[0, :, :, :] = realIm[0, :, :, :].sub_(mean[:, None, None]).div_(std[:, None, None])
+
         f_fake = self.contentFunc.forward(fakeIm)
         f_real = self.contentFunc.forward(realIm)
         f_real_no_grad = f_real.detach()
@@ -282,6 +287,10 @@ def get_loss(model):
     elif model['content_loss'] == 'l1':
         content_loss = ContentLoss()
         content_loss.initialize(nn.L1Loss())
+    elif model['content_loss'] == 'l2':
+        content_loss = ContentLoss()
+        content_loss.initialize(nn.MSELoss())
+
     else:
         raise ValueError("ContentLoss [%s] not recognized." % model['content_loss'])
 

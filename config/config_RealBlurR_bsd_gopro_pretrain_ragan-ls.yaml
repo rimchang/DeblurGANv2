@@ -1,0 +1,53 @@
+---
+project: deblur_gan
+experiment_desc: deblur_gan_v2_RealBlur_R_bsd_gopro_pretrain_ragan_ls_10000
+
+train:
+  files_a: datalist/RealBlur_R_train_list.txt,datalist/BSB_B_Centroid_train.txt,datalist/datalist_gopro.txt
+  files_b: datalist/RealBlur_R_train_list.txt,datalist/BSB_B_Centroid_train.txt,datalist/datalist_gopro.txt
+  size: &SIZE 256
+  crop: random
+  preload: &PRELOAD false
+  preload_size: &PRELOAD_SIZE 0
+  bounds: [0, .9]
+  scope: geometric
+  over_sampling: 20000
+val:
+  files_a: datalist/RealBlur_R_test_list.txt
+  files_b: datalist/RealBlur_R_test_list.txt
+  size: *SIZE
+  scope: geometric
+  crop: center
+  preload: *PRELOAD
+  preload_size: *PRELOAD_SIZE
+  bounds: [.9, 1]
+  over_sampling: 0
+phase: train
+warmup_num: 3
+model:
+  g_name: fpn_inception
+  blocks: 9
+  d_name: double_gan # may be no_gan, patch_gan, double_gan, multi_scale
+  d_layers: 3
+  content_loss: perceptual
+  adv_lambda: 0.01
+  disc_loss: ragan-ls
+  learn_residual: True
+  norm_layer: instance
+  dropout: True
+
+num_epochs: 300
+train_batches_per_epoch: 10000
+val_batches_per_epoch: 100
+batch_size: 1
+image_size: [256, 256]
+
+optimizer:
+  name: adam
+  lr: 0.0001
+scheduler:
+  name: linear
+  start_epoch: 150
+  min_lr: 0.0000001
+
+

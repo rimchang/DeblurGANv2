@@ -15,7 +15,7 @@ from models.networks import get_generator
 
 class Predictor:
     def __init__(self, weights_path: str, model_name: str = ''):
-        with open('config/config.yaml') as cfg:
+        with open('config/config_RealBlurJ_bsd_gopro_pretrain_ragan-ls.yaml') as cfg:
             config = yaml.load(cfg)
         model = get_generator(model_name or config['model'])
         model.load_state_dict(torch.load(weights_path)['model'])
@@ -56,8 +56,8 @@ class Predictor:
     def _postprocess(x: torch.Tensor) -> np.ndarray:
         x, = x
         x = x.detach().cpu().float().numpy()
-        x = (np.transpose(x, (1, 2, 0)) + 1) / 2.0 * 255.0
-        return x.astype('uint8')
+        x = (np.transpose(x, (1, 2, 0)) + 1) / 2.0 #* 255.0
+        return x
 
     def __call__(self, img: np.ndarray, mask: Optional[np.ndarray], ignore_mask=True) -> np.ndarray:
         (img, mask), h, w = self._preprocess(img, mask)
@@ -68,57 +68,62 @@ class Predictor:
             pred = self.model(*inputs)
         return self._postprocess(pred)[:h, :w, :]
 
-def process_video(pairs, predictor, output_dir):
-    for video_filepath, mask in tqdm(pairs):
-        video_filename = os.path.basename(video_filepath)
-        output_filepath = os.path.join(output_dir, os.path.splitext(video_filename)[0]+'_deblur.mp4')
-        video_in = cv2.VideoCapture(video_filepath)
-        fps = video_in.get(cv2.CAP_PROP_FPS)
-        width = int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frame_num = int(video_in.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_out = cv2.VideoWriter(output_filepath, cv2.VideoWriter_fourcc(*'MP4V'), fps, (width, height))
-        tqdm.write(f'process {video_filepath} to {output_filepath}, {fps}fps, resolution: {width}x{height}')
-        for frame_num in tqdm(range(total_frame_num), desc=video_filename):
-            res, img = video_in.read()
-            if not res:
-                break
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            pred = predictor(img, mask)
-            pred = cv2.cvtColor(pred, cv2.COLOR_RGB2BGR)
-            video_out.write(pred)
 
 def main(img_pattern: str,
          mask_pattern: Optional[str] = None,
-         weights_path='best_fpn.h5',
+         weights_path='provided_model/fpn_inception.h5',
          out_dir='submit/',
-         side_by_side: bool = False,
-         video: bool = False):
+         side_by_side: bool = False):
     def sorted_glob(pattern):
         return sorted(glob(pattern))
 
-    imgs = sorted_glob(img_pattern)
-    masks = sorted_glob(mask_pattern) if mask_pattern is not None else [None for _ in imgs]
-    pairs = zip(imgs, masks)
-    names = sorted([os.path.basename(x) for x in glob(img_pattern)])
-    predictor = Predictor(weights_path=weights_path)
-
-    os.makedirs(out_dir, exist_ok=True)
-    if not video:
-        for name, pair in tqdm(zip(names, pairs), total=len(names)):
-            f_img, f_mask = pair
-            img, mask = map(cv2.imread, (f_img, f_mask))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-            pred = predictor(img, mask)
-            if side_by_side:
-                pred = np.hstack((img, pred))
-            pred = cv2.cvtColor(pred, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(os.path.join(out_dir, name),
-                        pred)
+    if '.txt' not in img_pattern:
+        imgs = sorted_glob(img_pattern)
+        mask_pattern = None
+        masks = sorted_glob(mask_pattern) if mask_pattern is not None else [None for _ in imgs]
+        pairs = list(zip(imgs, masks))
+        names = sorted([os.path.basename(x) for x in glob(img_pattern)])
+        predictor = Predictor(weights_path=weights_path)
     else:
-        process_video(pairs, predictor, out_dir)
+        imgs = open(img_pattern, 'rt').read().splitlines()
+        imgs = list(map(lambda x: x.strip().split(' '), imgs))
+        imgs = [blur_p for gt_p, blur_p in imgs]
+        mask_pattern = None
+        masks = sorted_glob(mask_pattern) if mask_pattern is not None else [None for _ in imgs]
+        pairs = list(zip(imgs, masks))
+        if 'kohler' not in img_pattern:
+            names = [x.split('/') for x in imgs]
+            names = [x[1] + "_" + x[-1] for x in names]
+        else:
+            names = [os.path.basename(x) for x in imgs]
 
+        predictor = Predictor(weights_path=weights_path)
+    os.makedirs(out_dir, exist_ok=True)
+    for name, pair in tqdm(zip(names, pairs), total=len(names)):
+        f_img, f_mask = pair
+        f_img = os.path.join('dataset', f_img)
+        img, mask = map(cv2.imread, (f_img, f_mask))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        pred = predictor(img, mask)
+        if side_by_side:
+            pred = np.hstack((img, pred))
+        pred = cv2.cvtColor(pred, cv2.COLOR_RGB2BGR)
+
+        out = pred
+        srgb_out = np.power(out, 1 / 2.2)
+        srgb_out = np.clip(srgb_out * 255, 0, 255) + 0.5
+        srgb_out = srgb_out.astype('uint8')
+
+        out = np.clip(out * 255, 0, 255) + 0.5
+        out = out.astype('uint8')
+
+
+        name = name.replace('jpg', 'png')
+        cv2.imwrite(os.path.join(out_dir, name),
+                    out)
+        #cv2.imwrite(os.path.join(out_dir, 'srgb_'+name),
+        #            srgb_out)
 
 if __name__ == '__main__':
     Fire(main)
