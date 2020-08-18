@@ -72,7 +72,7 @@ class Predictor:
 def main(img_pattern: str,
          mask_pattern: Optional[str] = None,
          weights_path='provided_model/fpn_inception.h5',
-         out_dir='submit/',
+         out_dir='result/',
          side_by_side: bool = False):
     def sorted_glob(pattern):
         return sorted(glob(pattern))
