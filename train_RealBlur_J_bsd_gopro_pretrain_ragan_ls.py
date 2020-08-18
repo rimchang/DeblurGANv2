@@ -158,7 +158,7 @@ class Trainer:
     def _init_params(self):
         self.criterionG, criterionD = get_loss(self.config['model'])
         self.netG, netD = get_nets(self.config['model'])
-        self.netG.load_state_dict(torch.load('provided_model/fpn_inception.h5')['model'])
+        self.netG.load_state_dict(torch.load('checkpoints/provided_model/fpn_inception.h5')['model'])
         self.netG.cuda()
         self.adv_trainer = self._get_adversarial_trainer(self.config['model']['d_name'], netD, criterionD)
         self.model = get_model(self.config['model'])
